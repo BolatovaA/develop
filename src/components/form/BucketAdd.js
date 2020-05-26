@@ -1,7 +1,8 @@
-import React, { Component, useEffect, useState } from 'react';
+import React, { Component } from 'react';
 import {Form, Button, Input, Row, Col, Table} from 'antd';
 import "./index.less";
-import firebase from "./firebase";
+import firestore from '../../Firestore';
+import DeleteForeverIcon from '@material-ui/icons/DeleteForever';
 
 @Form.create()
 class BucketAdd extends Component {
@@ -9,71 +10,104 @@ class BucketAdd extends Component {
     constructor(props) {
         super(props);
 
+        this.ref = firestore.firestore().collection('bucket-list');
+        this.purchase = null;
+
         this.state= {
-            name: "",
-            product: "",
-            price: null,
-            quantity: null
+            purchase: []
         }
     }
 
+    onCollectionUpdate = (querySnapshot) => {
+        const purchase = [];
+        querySnapshot.forEach((doc) => {
+          const { name, product, price, quantity, sum } = doc.data();
+          purchase.push({
+            key: doc.id,
+            name,
+            price,
+            product,
+            quantity,
+            sum
+          });
+        });
+        this.setState({
+          purchase
+       });
+      }
+    
+      componentDidMount() {
+        this.purchase = this.ref.onSnapshot(this.onCollectionUpdate);
+      }
+
     onSubmitForm = (e) => {
         e.preventDefault();
+        console.log("get here")
 
-        const db = firebase.firestore();
-        db.settings({
-            timestampsInSnapshots: true
-        });
+        const db = firestore.firestore();
+        db.settings({});
 
         this.props.form.validateFields((err, values) => {
-            const userRef = db.collection("bucket-list").add({
-                name: values.name,
+            db.collection("bucket-list").add({
+                name: values.username,
                 product: values.product,
                 price: values.price,
-                quantity: values.quantity
-              });  
+                quantity: values.quantity,
+                sum: values.price * values.quantity
+              });
               this.setState({
-                name: "",
-                product: "",
-                price: null,
-                quantity: null
+                purchase: []
               });
         });
     };
 
+    onDeletePurchase(id){
+        console.log(id)
+        firestore.firestore().collection('bucket-list').doc(id).delete().then(() => {
+          console.log("Товар успешно удален!");
+          this.props.history.push("/")
+        }).catch((error) => {
+          console.error("Ошибка при удалении товара из корзины: ", error);
+        });
+      }
+    
+
     render() {
 
         const {getFieldDecorator} = this.props.form;
+        const formItemLayout = { labelCol: {} };
+
+        console.log(this.state.purchase)
 
         return (<>
             <div className={'search-field'}>
-                <Form onSubmit={this.onSubmitForm} layout="inline">
+                <Form autoComplete={"off"} onSubmit={this.onSubmitForm} labelAlign="left" layout="inline">
                         <Row>
-                            <Col span={24}>
-                                <Form.Item label="Имя">
+                            <Col span={6}>
+                                <Form.Item {...formItemLayout} label="Имя">
                                     {getFieldDecorator('username', {
                                         rules: [{required: true, message: 'Username is required!'}],
                                     })(<Input/>)}
                                 </Form.Item>
                             </Col>
-                        </Row> <br/>
-                        <Row>
-                            <Col span={8}>
-                                <Form.Item label="Товар">
+                            <Col span={6}>
+                                <Form.Item {...formItemLayout} label="Товар">
                                     {getFieldDecorator('product', {
                                         rules: [{required: true, message: 'Product is required!'}],
                                     })(<Input/>)}
                                 </Form.Item>
                             </Col>
-                            <Col span={8}>
-                                <Form.Item label="Цена">
+                        </Row> <br/>
+                        <Row>
+                            <Col span={6}>
+                                <Form.Item {...formItemLayout} label="Цена">
                                     {getFieldDecorator('price', {
                                         rules: [{required: true, message: 'Price is required!'}],
                                     })(<Input/>)}
                                 </Form.Item>
                             </Col>
-                            <Col span={8}>
-                                <Form.Item label="Количество">
+                            <Col span={6}>
+                                <Form.Item {...formItemLayout} label="Количество">
                                     {getFieldDecorator('quantity', {
                                         rules: [{required: true, message: 'Quantity is required!'}],
                                     })(<Input/>)}
@@ -93,12 +127,12 @@ class BucketAdd extends Component {
                 <Table 
                 bodyStyle={{
                 background: "#FFFFFF",
-                margin: "0 24px"
+                margin: "0 12px"
                 }}
                 style={{
                 background: "#FFFFFF"
                 }}
-                showHeader={false}
+                showHeader={true}
                 border={false}
                 size={"small"}
                 pagination={false}
@@ -106,35 +140,42 @@ class BucketAdd extends Component {
                 columns={[
                     {
                         title: "Имя",
-                        dataIndex: "",
-                        key: ""
+                        dataIndex: "name",
+                        key: "name"
                     },
                     {
                         title: "Товар",
-                        dataIndex: "",
-                        key: ""
+                        dataIndex: "product",
+                        key: "product"
                     },
                     {
                         title: "Цена",
-                        dataIndex: "",
-                        key: ""
+                        dataIndex: "price",
+                        key: "price"
                     },
                     {
                         title: "Количество",
-                        dataIndex: "",
-                        key: ""
+                        dataIndex: "quantity",
+                        key: "quantity"
                     },
                     {
                         title: "Сумма",
-                        dataIndex: "",
-                        key: ""
+                        dataIndex: "sum",
+                        key: "sum"
                     },
                     {
                         title: "Удалить",
-                        dataIndex: "",
-                        key: ""
+                        dataIndex: "key",
+                        key: "key",
+                        render: (record)=>(<span
+                        onClick={() => {
+                            this.onDeletePurchase(record)
+                        }}>
+                            <DeleteForeverIcon/>
+                        </span>)
                     }
-                ]}/>
+                ]}
+                dataSource={this.state.purchase}/>
             </div>
         </>);
     }
